@@ -31,4 +31,6 @@
                  [cc.qbits/alia                 "2.8.0"]
                  [cc.qbits/jet                  "0.6.2"]
                  [net.jpountz.lz4/lz4           "1.3"]
-                 [org.xerial.snappy/snappy-java "1.1.1.7"]])
+                 [org.xerial.snappy/snappy-java "1.1.1.7"]
+                 [joda-time/joda-time           "2.8.2"]
+                 [amazonica                     "0.3.33"]])

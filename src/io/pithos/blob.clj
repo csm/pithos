@@ -66,6 +66,15 @@
   (chunk! [this od block offset chunk])
   (boundary? [this block offset]))
 
+(defprotocol ProxiedBlobstore
+  "A blobstore that sits atop another blobstore implementation, and with
+  which we can take some shortcuts."
+  (proxied-bucket [this])
+  (proxy-get [this od out [start end]])
+  (proxy-put! [this od stream])
+  (proxy-copy! [this src src-bucket dst])
+  (proxy-copy-parts! [this src-parts dst notifier]))
+
 ;; CQL Schema
 (def inode_blocks-table
   "List of blocks found in an inode, keyed by inode and version"
@@ -164,7 +173,7 @@
       (delete! [this od version]
         (let [ino (if (= (class od) java.util.UUID) od (d/inode od))]
           (doseq [{block :block} (execute session
-                                          (get-block-q ino version :asc))]
+                        `                  (get-block-q ino version :asc))]
             (execute session (delete-block-q ino version block)))
           (execute session (delete-blockref-q ino version))))
       Blobstore
