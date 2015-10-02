@@ -66,63 +66,6 @@
           (catch AmazonS3Exception e
             (info "exception when deleting" od version "--" e))))
 
-      ;Blobstore
-      ;; (blocks [this od]
-      ;;   (let [prefix (join "/" [(d/inode od) (d/version od) ""])]
-      ;;     (debug "fetching blocks with prefix" prefix)
-      ;;     (map (fn [pfx] {:block (Long/parseLong (.substring pfx (count prefix) (dec (count pfx))))})
-      ;;          (:common-prefixes
-      ;;           (s3/list-objects creds
-      ;;                            :bucket-name bucket
-      ;;                            :prefix prefix
-      ;;                            :delimiter "/")))))
-
-      ;; (max-chunk [this] (* 100 1024 1024))
-
-      ;; (chunks [this od block offset]
-      ;;   (let [prefix (join "/" [(d/inode od) (d/version od) block ""])
-      ;;         keys (:object-summaries (s3/list-objects creds
-      ;;                                                  :bucket-name bucket
-      ;;                                                  :prefix prefix))
-      ;;         offsets (filter #(>= % offset)
-      ;;                         (map (fn [key] (Long/parseLong (.substring (:key key) (count prefix))))
-      ;;                              keys))]
-      ;;     (debug "fetching chunks with prefix:" prefix "offsets:" offsets)
-      ;;     (map (fn [off]
-      ;;            (let [object (s3/get-object creds
-      ;;                                        :bucket-name bucket
-      ;;                                        :key (str prefix off))]
-      ;;              {:inode (d/inode od)
-      ;;               :version (d/version od)
-      ;;               :block block
-      ;;               :offset off
-      ;;               :chunksize (-> object :object-metadata :content-length)
-      ;;               :payload (stream->buffer
-      ;;                         (doto (:input-stream object)
-      ;;                           #(when (<= off offset (+ off (-> object :object-metadata :content-length)))
-      ;;                              (.skip % (- offset off)))))}))
-      ;;          offsets)))
-
-      ;; (boundary? [this block offset] false) ; TODO
-
-      ;; (start-block! [this od block]
-      ;;   (let [key (join "/" [(d/inode od) (d/version od) block "0"])]
-      ;;     (s3/put-object creds
-      ;;                    :input-stream empty-stream
-      ;;                    :key key
-      ;;                    :bucket-name bucket
-      ;;                    :metadata {:content-length 0})))
-
-      ;; (chunk! [this od block offset chunk]
-      ;;   (let [key (join "/" [(d/inode od) (d/version od) block offset])
-      ;;         size (- (.limit chunk) (.position chunk))]
-      ;;     (s3/put-object creds
-      ;;                    :input-stream (buffer->stream chunk)
-      ;;                    :key key
-      ;;                    :bucket-name bucket
-      ;;                    :metadata {:content-length size})
-      ;;     size))
-
       ProxiedBlobstore
       (proxied-bucket [this] {:name bucket})
 
@@ -139,11 +82,11 @@
         (let [key (str (inode od) "/" (version od))
               mp-request (s3/initiate-multipart-upload creds
                                                        :bucket-name bucket
-                                                       :key key)
-              buffer (byte-array chunk-size)]
+                                                       :key key)]
           (loop [part 1
                  part-etags []]
-            (let [cnt (.read in buffer)]
+            (let [buffer (ByteStreams/toByteArray (ByteStreams/limit in chunk-size))
+                  cnt (alength buffer)]
               (debug "uploading part" part "of size" cnt)
               (let [upload-part (s3/upload-part creds
                                                 :upload-id (:upload-id mp-request)
@@ -177,10 +120,12 @@
                                                        :bucket-name bucket
                                                        :key (str (inode dst) "/" (version dst)))
               part-etags (map (fn [[part-number [src src-bucket]]]
-                                (notifier :part)
-                                (debug "copying part" src "in" src-bucket "to" dst)
+                                (notifier :block)
+                                (debug "copying part" (str (inode src) "/" (version src))
+                                       "in" src-bucket "to" (str (inode dst) "/" (version dst)))
                                 (:part-etag
                                  (s3/copy-part creds
+                                               :upload-id (:upload-id mp-request)
                                                :destination-bucket-name bucket
                                                :destination-key (str (inode dst) "/" (version dst))
                                                :part-number (inc part-number)

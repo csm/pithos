@@ -172,7 +172,7 @@
   (let [dblob (d/blobstore dst)]
     (if (satisfies? b/ProxiedBlobstore dblob)
       (let [[size hash] (b/proxy-copy-parts! dblob
-                                             (map (fn [part] [part (:name (b/proxied-bucket part))]) parts)
+                                             (map (fn [part] [part (:name (b/proxied-bucket (d/blobstore part)))]) parts)
                                              dst
                                              notifier)]
         (d/col! dst :size size)
